@@ -58,7 +58,7 @@ public final class DependencyListMojo extends AbstractMojo {
     );
 
     /**
-     * Maven project which we are listing the dependencies for
+     * Maven project on which the plugin is operating
      */
     @Parameter(property = "project", readonly = true, required = true)
     private MavenProject project;

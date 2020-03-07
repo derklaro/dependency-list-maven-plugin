@@ -5,6 +5,32 @@
 A simple plugin which collects all dependencies from the current project and writes 
 them to the specified file.
 
+## Example output
+
+An output looks like this if you don't change any config options:
+
+```
+org.bouncycastle:bcprov-jdk15on:1.64
+org.spigotmc:spigot-api:1.8.8-R0.1-20160221.082514-43
+```
+
+If we enable the config option `resolveDependenciesOfDependencies` it looks like this:
+
+```
+org.bouncycastle:bcprov-jdk15on:1.64
+com.google.code.gson:gson:2.2.4
+javax.persistence:persistence-api:1.0
+org.hamcrest:hamcrest-core:1.1
+junit:junit:4.10
+com.google.guava:guava:17.0
+com.googlecode.json-simple:json-simple:1.1.1
+net.md-5:bungeecord-chat:1.8-20160221.214602-128
+org.avaje:ebean:2.8.1
+commons-lang:commons-lang:2.6
+org.yaml:snakeyaml:1.15
+org.spigotmc:spigot-api:1.8.8-R0.1-20160221.082514-43
+```
+
 ## Repository
 
 You have to use a plugin repository as shown below to use the plugin:
