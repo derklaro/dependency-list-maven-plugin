@@ -35,7 +35,7 @@ You have to use a plugin repository as shown below to use the plugin:
                         <!-- Excludes all files with the 'spigot-api' artifact id -->
                         <exclude>*:spigot-api</exclude>
                         <!-- Excludes the org.spigotmc:spigot-api dependency -->
-                        <exclude>org.spigotmc:*</exclude>
+                        <exclude>org.spigotmc:spigot-api</exclude>
                     </excludes>
 
                     <!-- The excluded dependency scopes -->
