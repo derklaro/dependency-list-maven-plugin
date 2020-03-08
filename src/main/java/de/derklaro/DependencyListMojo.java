@@ -99,6 +99,12 @@ public final class DependencyListMojo extends AbstractMojo {
     private String outputFormat;
 
     /**
+     * If the plugin should include optional dependencies
+     */
+    @Parameter(defaultValue = "false")
+    private boolean includeOptionalDependencies;
+
+    /**
      * Artifacts which should get excluded from the dependency tree building. Based on the identifier
      * in the general form <code>groupId:artifactId</code>. The version of the dependency is ignored.
      * It's also possible to ignore whole artifact name by using <code>groupId:*</code> or all dependencies
@@ -218,7 +224,7 @@ public final class DependencyListMojo extends AbstractMojo {
         for (Object dependencyArtifact : this.resolveDependenciesOfDependencies ? this.project.getArtifacts() : this.project.getDependencyArtifacts()) {
             if (dependencyArtifact instanceof Artifact) {
                 Artifact artifact = (Artifact) dependencyArtifact;
-                if (!allowedScopes.contains(artifact.getScope())) {
+                if (!allowedScopes.contains(artifact.getScope()) || (!this.includeOptionalDependencies && artifact.isOptional())) {
                     continue;
                 }
 
