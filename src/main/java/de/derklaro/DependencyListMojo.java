@@ -36,6 +36,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.Collection;
@@ -105,6 +106,12 @@ public final class DependencyListMojo extends AbstractMojo {
     private boolean includeOptionalDependencies;
 
     /**
+     * If the plugin should create the parent directories if they do not exists
+     */
+    @Parameter(defaultValue = "true")
+    private boolean createParentFiles;
+
+    /**
      * Artifacts which should get excluded from the dependency tree building. Based on the identifier
      * in the general form <code>groupId:artifactId</code>. The version of the dependency is ignored.
      * It's also possible to ignore whole artifact name by using <code>groupId:*</code> or all dependencies
@@ -157,6 +164,16 @@ public final class DependencyListMojo extends AbstractMojo {
         if (this.excludedScopes == null) {
             this.getLog().debug("Setting default values for excluded scopes");
             this.excludedScopes = new HashSet<>();
+        }
+
+        Path parent = resultFile.toPath().getParent();
+        if (parent != null && !parent.toFile().exists() && this.createParentFiles) {
+            try {
+                Files.createDirectories(parent);
+            } catch (final IOException ex) {
+                this.printWarningOrFail("Error creating parent directory " + parent.toFile().getAbsolutePath());
+                return;
+            }
         }
 
         try {

@@ -49,7 +49,7 @@ You have to use a plugin repository as shown below to use the plugin:
             <plugin>
                 <groupId>de.derklaro</groupId>
                 <artifactId>dependency-list-maven-plugin</artifactId>
-                <version>1.1</version>
+                <version>1.2</version>
                 <configuration>
                     <!-- The full path of the output file, viewed from the current project folder -->
                     <outputFileName>src/main/resources/depends.txt</outputFileName>
@@ -83,6 +83,9 @@ You have to use a plugin repository as shown below to use the plugin:
 
                     <!-- If the plugin should resolve the dependencies which are clearly marked as optional -->                    
                     <includeOptionalDependencies>false</includeOptionalDependencies>
+
+                    <!-- If the plugin should generate the parent directories of the output file -->
+                    <createParentFiles>true</createParentFiles>
 
                     <!-- 
                     Sets the output format for every line in the output file:
