@@ -20,6 +20,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-.idea/
-target/
+.idea
+target
+dependency-reduced-pom.xml
 *.iml
+*.class
+.mvn/wrapper/maven-wrapper.jar
+pom.xml.versionsBackup

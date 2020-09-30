@@ -31,6 +31,14 @@ org.yaml:snakeyaml:1.15
 org.spigotmc:spigot-api:1.8.8-R0.1-20160221.082514-43
 ```
 
+or with the repository provided in the output format (see below for more information) it can look
+ like:
+```
+central => https://repo.maven.apache.org/maven2 com.h2database:h2:1.4.200
+central => https://repo.maven.apache.org/maven2 io.netty:netty-transport-native-unix-common:4.1.52.Final
+jitpack.io => https://jitpack.io com.github.derrop:documents:1.1-RELEASE
+```
+
 ## Repository
 
 You have to use a plugin repository as shown below to use the plugin:
@@ -49,7 +57,7 @@ You have to use a plugin repository as shown below to use the plugin:
             <plugin>
                 <groupId>de.derklaro</groupId>
                 <artifactId>dependency-list-maven-plugin</artifactId>
-                <version>1.2</version>
+                <version>1.3.0</version>
                 <configuration>
                     <!-- The full path of the output file, viewed from the current project folder -->
                     <outputFileName>src/main/resources/depends.txt</outputFileName>
@@ -93,8 +101,10 @@ You have to use a plugin repository as shown below to use the plugin:
                          {1} is the output of the artifactId
                          {2} is the output of the version
                          {3} is the output of the dependency scope
+                         {4} is the output of the repository remote url the dependency is located in
+                         {5} is the output of the repository remote id the dependency is located in
                     -->
-                    <outputFormat>{0}:{1}:{2} - {3}</outputFormat>
+                    <outputFormat>{0}:{1}:{2} - {3} IN {4}/{5}</outputFormat>
                 </configuration>
                 <executions>
                     <execution>

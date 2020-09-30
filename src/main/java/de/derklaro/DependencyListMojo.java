@@ -23,7 +23,10 @@
  */
 package de.derklaro;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.model.Dependency;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
@@ -34,14 +37,14 @@ import org.apache.maven.project.MavenProject;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.MessageFormat;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.*;
 
 @Mojo(name = "dependency-list", defaultPhase = LifecyclePhase.PACKAGE, threadSafe = true, requiresDependencyResolution = ResolutionScope.COMPILE)
 public final class DependencyListMojo extends AbstractMojo {
@@ -50,12 +53,12 @@ public final class DependencyListMojo extends AbstractMojo {
      * All available scopes provided by maven for dependencies
      */
     private static final Collection<String> SCOPES = Arrays.asList(
-            Artifact.SCOPE_COMPILE,
-            Artifact.SCOPE_PROVIDED,
-            Artifact.SCOPE_RUNTIME,
-            Artifact.SCOPE_IMPORT,
-            Artifact.SCOPE_SYSTEM,
-            Artifact.SCOPE_TEST
+        Artifact.SCOPE_COMPILE,
+        Artifact.SCOPE_PROVIDED,
+        Artifact.SCOPE_RUNTIME,
+        Artifact.SCOPE_IMPORT,
+        Artifact.SCOPE_SYSTEM,
+        Artifact.SCOPE_TEST
     );
 
     /**
@@ -63,31 +66,26 @@ public final class DependencyListMojo extends AbstractMojo {
      */
     @Parameter(property = "project", readonly = true, required = true)
     private MavenProject project;
-
     /**
      * The output file name including the directory
      */
     @Parameter(defaultValue = "dependency-list.txt")
     private String outputFileName;
-
     /**
      * If the build should fail if an error occurs
      */
     @Parameter(defaultValue = "false")
     private boolean fail;
-
     /**
      * If the plugin should override the file if it already exists
      */
     @Parameter(defaultValue = "true")
     private boolean overrideExistingFile;
-
     /**
      * If the plugin should also resolve the dependencies of the dependencies
      */
     @Parameter(defaultValue = "false")
     private boolean resolveDependenciesOfDependencies;
-
     /**
      * Sets the output format for the dependency.
      *
@@ -95,22 +93,21 @@ public final class DependencyListMojo extends AbstractMojo {
      * <code>{1}</code> is the output of the artifactId
      * <code>{2}</code> is the output of the version
      * <code>{3}</code> is the output of the dependency scope
+     * <code>{4}</code> is the output of the repository url the dependency is located in
+     * <code>{5}</code> is the output of the repository id the dependency is located in
      */
     @Parameter(defaultValue = "{0}:{1}:{2}")
     private String outputFormat;
-
     /**
      * If the plugin should include optional dependencies
      */
     @Parameter(defaultValue = "false")
     private boolean includeOptionalDependencies;
-
     /**
      * If the plugin should create the parent directories if they do not exists
      */
     @Parameter(defaultValue = "true")
     private boolean createParentFiles;
-
     /**
      * Artifacts which should get excluded from the dependency tree building. Based on the identifier
      * in the general form <code>groupId:artifactId</code>. The version of the dependency is ignored.
@@ -125,7 +122,6 @@ public final class DependencyListMojo extends AbstractMojo {
      */
     @Parameter
     private Set<String> excludes;
-
     /**
      * The scopes of dependencies which should get ignored. If the list contains for example <code>provided</code>,
      * all dependencies which are marked as provided are ignored. If the option {@link DependencyListMojo#resolveDependenciesOfDependencies}
@@ -141,17 +137,19 @@ public final class DependencyListMojo extends AbstractMojo {
     @Parameter
     private Set<String> excludedScopes;
 
+    private final ExecutorService lookupPool = Executors.newCachedThreadPool();
+
     @Override
     public void execute() throws MojoExecutionException {
         this.debugValues();
 
-        File resultFile = new File(outputFileName);
+        File resultFile = new File(this.outputFileName);
         if (resultFile.exists()) {
             this.getLog().debug("The resultFile already exists at " + resultFile.getAbsolutePath());
 
             if (!this.overrideExistingFile) {
                 this.printWarningOrFail("The output file already exists and it's define to not override " +
-                        "the existing file at " + resultFile.getAbsolutePath());
+                    "the existing file at " + resultFile.getAbsolutePath());
                 return;
             }
         }
@@ -190,26 +188,8 @@ public final class DependencyListMojo extends AbstractMojo {
             return;
         }
 
-        Set<String> out = new HashSet<>();
-        Set<Artifact> artifacts = this.dependencyArtifacts();
-        for (Artifact artifact : artifacts) {
-            if (this.isIgnored(artifact)) {
-                this.getLog().info("Ignoring " + artifact.getGroupId() + ":" + artifact.getArtifactId());
-                continue;
-            }
-
-            this.getLog().info("Including " + artifact.getGroupId() + ":" + artifact.getArtifactId());
-            out.add(MessageFormat.format(
-                    this.outputFormat,
-                    artifact.getGroupId(),
-                    artifact.getArtifactId(),
-                    artifact.getVersion(),
-                    artifact.getScope()
-            ));
-        }
-
         try {
-            Files.write(resultFile.toPath(), out, StandardCharsets.UTF_8);
+            Files.write(resultFile.toPath(), this.collectDependencyArtifacts(this.selectScopes()).getBytes(StandardCharsets.UTF_8));
             this.getLog().info("Wrote dependency list to " + resultFile.getAbsolutePath());
         } catch (final IOException ex) {
             this.printWarningOrFail("Failed to write dependencies to file " + resultFile.getAbsolutePath() + " error: " + ex.getMessage());
@@ -235,21 +215,80 @@ public final class DependencyListMojo extends AbstractMojo {
      * @see DependencyListMojo#excludedScopes
      * @see DependencyListMojo#resolveDependenciesOfDependencies
      */
-    private Set<Artifact> dependencyArtifacts() {
-        Set<Artifact> out = new HashSet<>();
-        Set<String> allowedScopes = selectScopes();
-        for (Object dependencyArtifact : this.resolveDependenciesOfDependencies ? this.project.getArtifacts() : this.project.getDependencyArtifacts()) {
-            if (dependencyArtifact instanceof Artifact) {
-                Artifact artifact = (Artifact) dependencyArtifact;
-                if (!allowedScopes.contains(artifact.getScope()) || (!this.includeOptionalDependencies && artifact.isOptional())) {
-                    continue;
-                }
+    private String collectDependencyArtifacts(Set<String> allowedScopes) throws MojoExecutionException {
+        final StringBuilder stringBuilder = new StringBuilder();
 
-                out.add(artifact);
+        final Collection<Artifact> artifacts;
+        if (this.resolveDependenciesOfDependencies) {
+            artifacts = this.project.getArtifacts();
+        } else {
+            artifacts = new ArrayList<>();
+
+            for (Dependency dependency : this.project.getDependencies()) {
+                Artifact artifact = this.project.getArtifactMap().get(dependency.getGroupId() + ':' + dependency.getArtifactId());
+                if (artifact != null) {
+                    artifacts.add(artifact);
+                }
             }
         }
 
-        return out;
+        // Sort all ignored artifacts out
+        artifacts.removeIf(artifact -> !allowedScopes.contains(artifact.getScope()) || this.isIgnored(artifact));
+
+        // No repository lookup is required because it's not needed
+        if (!this.outputFormat.contains("{4}") && !this.outputFormat.contains("{5}")) {
+            artifacts.forEach(artifact -> stringBuilder.append(MessageFormat.format(
+                this.outputFormat,
+                // artifact info
+                artifact.getGroupId(),
+                artifact.getArtifactId(),
+                artifact.getVersion(),
+                artifact.getScope()
+            )).append("\n"));
+            return stringBuilder.toString();
+        }
+
+        Map<Artifact, ArtifactRepository> repositoryMap = new ConcurrentHashMap<>();
+        for (Artifact artifact : artifacts) {
+            Collection<RunningRepositoryLookup> lookups = this.resolveDependencyRepository(artifact);
+            for (RunningRepositoryLookup lookup : lookups) {
+                lookup.getLookupStatus().thenAccept(result -> {
+                    if (result) {
+                        for (RunningRepositoryLookup runningRepositoryLookup : lookups) {
+                            if (!runningRepositoryLookup.getLookupStatus().isDone()) {
+                                runningRepositoryLookup.getLookupStatus().cancel(true);
+                                runningRepositoryLookup.getPoolFuture().cancel(true);
+                            }
+                        }
+
+                        repositoryMap.put(artifact, lookup.getRepository());
+                    }
+                });
+            }
+        }
+
+        try {
+            this.lookupPool.shutdown();
+            this.lookupPool.awaitTermination(5, TimeUnit.MINUTES);
+        } catch (InterruptedException exception) {
+            this.printWarningOrFail("Unable to await shutdown of thread pool: " + exception.getMessage());
+            return "";
+        }
+
+        repositoryMap.forEach((artifact, repository) -> stringBuilder.append(MessageFormat.format(
+            this.outputFormat,
+            // artifact info
+            artifact.getGroupId(),
+            artifact.getArtifactId(),
+            artifact.getVersion(),
+            artifact.getScope(),
+            // repo info
+            repository.getUrl().endsWith("/")
+                ? StringUtils.removeEnd(repository.getUrl(), "/")
+                : repository.getUrl(),
+            repository.getId()
+        )).append("\n"));
+        return stringBuilder.toString();
     }
 
     /**
@@ -277,7 +316,44 @@ public final class DependencyListMojo extends AbstractMojo {
             throw new MojoExecutionException(message);
         }
 
-        getLog().warn(message);
+        this.getLog().warn(message);
+    }
+
+    private Collection<RunningRepositoryLookup> resolveDependencyRepository(Artifact artifact) {
+        Collection<RunningRepositoryLookup> lookups = new ArrayList<>();
+        for (ArtifactRepository repository : this.project.getRemoteArtifactRepositories()) {
+            lookups.add(this.lookupRepository(repository, artifact));
+        }
+
+        return lookups;
+    }
+
+    private RunningRepositoryLookup lookupRepository(ArtifactRepository repository, Artifact artifact) {
+        RunningRepositoryLookup lookup = new RunningRepositoryLookup(new CompletableFuture<>(), repository);
+        lookup.poolFuture = this.lookupPool.submit(() -> {
+            try {
+                HttpURLConnection connection = (HttpURLConnection) new URL(repository.getUrl()
+                    + (repository.getUrl().endsWith("/") ? "" : "/")
+                    + artifact.getGroupId().replace(".", "/")
+                    + "/" + artifact.getArtifactId()
+                    + "/" + artifact.getVersion()
+                    + "/" + artifact.getArtifactId() + "-" + artifact.getVersion() + ".jar"
+                ).openConnection();
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(5000);
+                connection.setUseCaches(false);
+                connection.setRequestProperty(
+                    "User-Agent",
+                    "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11"
+                );
+                connection.connect();
+
+                lookup.getLookupStatus().complete(connection.getResponseCode() == 200);
+            } catch (IOException exception) {
+                lookup.getLookupStatus().completeExceptionally(exception);
+            }
+        });
+        return lookup;
     }
 
     /**
@@ -291,5 +367,29 @@ public final class DependencyListMojo extends AbstractMojo {
         this.getLog().debug("Output string format                 : " + this.outputFormat);
         this.getLog().debug("Excluded                             : " + (this.excludes == null ? "none" : String.join(", ", this.excludes)));
         this.getLog().debug("Excluded scopes                      : " + (this.excludedScopes == null ? "none" : String.join(", ", this.excludedScopes)));
+    }
+
+    private static final class RunningRepositoryLookup {
+
+        private final CompletableFuture<Boolean> lookupStatus;
+        private final ArtifactRepository repository;
+        private Future<?> poolFuture;
+
+        private RunningRepositoryLookup(CompletableFuture<Boolean> lookupStatus, ArtifactRepository repository) {
+            this.lookupStatus = lookupStatus;
+            this.repository = repository;
+        }
+
+        public CompletableFuture<Boolean> getLookupStatus() {
+            return this.lookupStatus;
+        }
+
+        public ArtifactRepository getRepository() {
+            return this.repository;
+        }
+
+        public Future<?> getPoolFuture() {
+            return this.poolFuture;
+        }
     }
 }
