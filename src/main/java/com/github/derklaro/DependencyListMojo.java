@@ -235,16 +235,27 @@ public final class DependencyListMojo extends AbstractMojo {
         // Sort all ignored artifacts out
         artifacts.removeIf(artifact -> !allowedScopes.contains(artifact.getScope()) || this.isIgnored(artifact));
 
+        // Already travelled dependencies in format 'group-id':'artifact-id' to prevent duplicates
+        Set<String> travelled = new HashSet<>();
+
         // No repository lookup is required because it's not needed
         if (!this.outputFormat.contains("{4}") && !this.outputFormat.contains("{5}")) {
-            artifacts.forEach(artifact -> stringBuilder.append(MessageFormat.format(
-                this.outputFormat,
-                // artifact info
-                artifact.getGroupId(),
-                artifact.getArtifactId(),
-                artifact.getVersion(),
-                artifact.getScope()
-            )).append("\n"));
+            artifacts.forEach(artifact -> {
+                String formatted = artifact.getGroupId() + ':' + artifact.getArtifactId();
+                if (travelled.contains(formatted)) {
+                    return;
+                }
+
+                travelled.add(formatted);
+                stringBuilder.append(MessageFormat.format(
+                    this.outputFormat,
+                    // artifact info
+                    artifact.getGroupId(),
+                    artifact.getArtifactId(),
+                    artifact.getVersion(),
+                    artifact.getScope()
+                )).append("\n");
+            });
             return stringBuilder.toString();
         }
 
@@ -275,19 +286,27 @@ public final class DependencyListMojo extends AbstractMojo {
             return "";
         }
 
-        repositoryMap.forEach((artifact, repository) -> stringBuilder.append(MessageFormat.format(
-            this.outputFormat,
-            // artifact info
-            artifact.getGroupId(),
-            artifact.getArtifactId(),
-            artifact.getVersion(),
-            artifact.getScope(),
-            // repo info
-            repository.getUrl().endsWith("/")
-                ? StringUtils.removeEnd(repository.getUrl(), "/")
-                : repository.getUrl(),
-            repository.getId()
-        )).append("\n"));
+        repositoryMap.forEach((artifact, repository) -> {
+            String formatted = artifact.getGroupId() + ':' + artifact.getArtifactId();
+            if (travelled.contains(formatted)) {
+                return;
+            }
+
+            travelled.add(formatted);
+            stringBuilder.append(MessageFormat.format(
+                this.outputFormat,
+                // artifact info
+                artifact.getGroupId(),
+                artifact.getArtifactId(),
+                artifact.getVersion(),
+                artifact.getScope(),
+                // repo info
+                repository.getUrl().endsWith("/")
+                    ? StringUtils.removeEnd(repository.getUrl(), "/")
+                    : repository.getUrl(),
+                repository.getId()
+            )).append("\n");
+        });
         return stringBuilder.toString();
     }
 
