@@ -45,8 +45,8 @@ You have to use a plugin repository as shown below to use the plugin:
 ```xml
     <pluginRepositories>
         <pluginRepository>
-            <id>reformcloud</id>
-            <url>https://repo.reformcloud.systems/</url>
+            <id>jitpack</id>
+            <url>https://jitpack.io</url>
         </pluginRepository>
     </pluginRepositories>
 ```
@@ -55,9 +55,9 @@ You have to use a plugin repository as shown below to use the plugin:
 ```xml
         <plugins>
             <plugin>
-                <groupId>de.derklaro</groupId>
-                <artifactId>dependency-list-maven-plugin</artifactId>
-                <version>1.3.0</version>
+                <groupId>com.github.derklaro</groupId>
+                <artifactId>maven-dependency-list-plugin</artifactId>
+                <version>1.3.3</version>
                 <configuration>
                     <!-- The full path of the output file, viewed from the current project folder -->
                     <outputFileName>src/main/resources/depends.txt</outputFileName>
