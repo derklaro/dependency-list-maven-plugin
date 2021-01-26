@@ -230,9 +230,6 @@ public final class DependencyListMojo extends AbstractMojo {
     final Collection<Artifact> artifacts;
     if (this.resolveDependenciesOfDependencies) {
       artifacts = this.project.getArtifacts();
-      for (Artifact artifact : artifacts) {
-        this.getLog().info(artifact.getGroupId() + ":" + artifact.getArtifactId());
-      }
     } else {
       artifacts = new ArrayList<>();
 
