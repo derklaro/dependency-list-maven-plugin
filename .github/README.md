@@ -62,7 +62,7 @@ You have to use a plugin repository as shown below to use the plugin:
   <plugin>
     <groupId>com.github.derklaro</groupId>
     <artifactId>dependency-list-maven-plugin</artifactId>
-    <version>1.3.4</version>
+    <version>LATEST</version> <!-- Replace LATEST with the latest release version -->
     <configuration>
       <!-- The full path of the output file, viewed from the current project folder -->
       <outputFileName>src/main/resources/depends.txt</outputFileName>
